@@ -74,7 +74,7 @@ std::optional<Token> Lexer::read_next_token()
 			{
 				if (is_float)
 				{
-					error("float should have only one dot ('.') !");
+					error("float should have only one dot '.' !");
 					return {};
 				}
 				is_float = true;
@@ -89,9 +89,9 @@ std::optional<Token> Lexer::read_next_token()
 				current_line,
 				static_cast<Float_t>(std::stol(tok_str)) };
 
-		return Token{ Token::Type::IntLiteral,
-		current_line,
-		static_cast<Int_t>(std::stoll(tok_str)) };
+		return Token{	Token::Type::IntLiteral,
+						current_line,
+						static_cast<Int_t>(std::stoll(tok_str)) };
 	}
 
 	// string
@@ -106,6 +106,21 @@ std::optional<Token> Lexer::read_next_token()
 		index++;
 		return Token{ Token::Type::StringLiteral, current_line, String_t(source.substr(first, last - first)) };
 	}
+
+	error("token not recognized");
+	return {};
+}
+
+std::queue<Token> Lexer::lex()
+{
+	std::queue<Token> tokens;
+
+	for (std::optional<Token> tk = read_next_token(); tk.has_value(); tk = read_next_token())
+	{
+		tokens.push(tk.value());
+	}
+		
+	return tokens;
 }
 
 void Lexer::error(std::string_view msg)
@@ -119,47 +134,57 @@ Parser::Parser(Lexer& lexer_) : lexer(&lexer_)
 
 std::optional<Cell> Parser::parse()
 {
-	current_token = lexer->read_next_token();
+	tokens = lexer->lex();
+	return parse_statement();
+}
 
-	if (!current_token)
+std::optional<Cell> Parser::parse_statement()
+{
+	if (tokens.empty())
+	{
+		error("Statement must end with ')' token", {});
 		return {};
+	}
 	
-	Token const& current = current_token.value();
+	Token const current = tokens.front();
+	tokens.pop();
+	
 	if (current.type == Token::Type::NodeOpen)
 	{
 		Statement st;
-		while (current_token.has_value() && current_token->type != Token::Type::NodeClose)
+		while (true)
 		{
-			auto const res = parse();
+			auto const res = parse_statement();
 			if (res.has_value())
-				st.cells.emplace_back(res.value());
+				st.cells.push_back(res.value());
+			else 
+				break;
 		}
-		lexer->read_next_token(); // ignore close token
-		return Cell{st};
+		return Cell{ st };
 	}
-	else if (current.type == Token::Type::IntLiteral)
+	if (current.type == Token::Type::IntLiteral)
 	{
-		return Cell{ std::get<Int_t>(current_token->value) };
+		return Cell{ std::get<Int_t>(current.value) };
 	}
 	else if (current.type == Token::Type::FloatLiteral)
 	{
-		return Cell{ std::get<Float_t>(current_token->value) };
+		return Cell{ std::get<Float_t>(current.value) };
 	}
 	else if (current.type == Token::Type::StringLiteral)
 	{
-		return Cell{ std::get<String_t>(current_token->value) };
+		return Cell{ std::get<String_t>(current.value) };
 	}
 	else if (current.type == Token::Type::Identifier)
 	{
-		return Cell{ Symbol{std::get<String_t>(current_token->value)} };
+		return Cell{ Symbol{std::get<String_t>(current.value)} };
 	}
-
+	
 	return {};
 }
 
 void Parser::error(std::string_view msg, Token tk)
 {
-	std::cerr << "parser error line " << tk.line << " - " << msg << "\n";
+	std::cerr << "parser error line " << tk.line << " : " << msg << "\n";
 }
 
 // https://en.cppreference.com/w/cpp/utility/variant/visit
@@ -169,9 +194,9 @@ template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 {
 	std::visit(overloaded {
-		[&out](Int_t arg) { out << arg << ' '; },
-		[&out](Float_t arg) { out << std::fixed << arg << ' '; },
-		[&out](String_t const& arg){ out << std::quoted(arg) << ' '; },
+		[&out](Int_t arg) { out << arg << " "; },
+		[&out](Float_t arg) { out << std::fixed << arg << " "; },
+		[&out](String_t const& arg){ out << std::quoted(arg) << " "; },
 		[&out](List_t const& arg)
 		{
 			out << '[';
@@ -179,12 +204,12 @@ std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 				out << e << ", ";
 			out << "] ";
 		},
-		[&out](Symbol const& arg) { out << "Sym : " << arg.name << ' '; },
+		[&out](Symbol const& arg) { out << "[Sym : " << arg.name << "] "; },
 		[&out](Statement const& arg)
 		{
-			out << '(';
+			out << "(";
 			for (auto const& e : arg.cells)
-				out << e;
+				out << " " << e;
 			out << ") ";
 		},
 	}, c.value);

@@ -6,6 +6,7 @@
 #include <string>
 #include <optional>
 #include <iosfwd>
+#include <queue>
 #include <string_view>
 #include <unordered_map>
 
@@ -28,7 +29,8 @@ namespace ales
 
 	struct Cell
 	{
-		std::variant<Int_t, Float_t, List_t, String_t, Symbol, Statement> value;
+		using CellValue_t = std::variant<Int_t, Float_t, List_t, String_t, Symbol, Statement>;
+		CellValue_t value;
 	};
 	
 	std::ostream& operator<<(std::ostream& out, Cell const& c);
@@ -47,16 +49,19 @@ namespace ales
 			FloatLiteral,
 			StringLiteral,
 		};
+
+		using TokenValue_t = std::variant<Int_t, Float_t, String_t>;
 		
 		Type type;
 		int line = -1;
-		std::variant<Int_t, Float_t, String_t> value;
+		TokenValue_t value;
 	};
 
 	struct Lexer
 	{
 		explicit Lexer(std::string_view src);
 		std::optional<Token> read_next_token();
+		[[nodiscard]] std::queue<Token> lex();
 		void error(std::string_view msg);
 
 		std::string_view source;
@@ -68,9 +73,10 @@ namespace ales
 	{
 		explicit Parser(Lexer& lexer);
 		std::optional<Cell> parse();
+		std::optional<Cell> parse_statement();
 		void error(std::string_view msg, Token tk);
-
-		std::optional<Token> current_token;
+		
+		std::queue<Token> tokens;
 		size_t index = 0;
 		Lexer* lexer;
 	};
