@@ -1,6 +1,21 @@
 #include "vm.hpp"
+#include "ostream"
 
 using namespace ales;
+
+const char* ales::to_string(OpCode e)
+{
+	switch (e)
+	{
+	case OpCode::AddInt: return "AddInt";
+	case OpCode::AddFloat: return "AddFloat";
+	case OpCode::PushInt: return "PushInt";
+	case OpCode::PushFloat: return "PushFloat";
+	case OpCode::StoreInt: return "StoreInt";
+	case OpCode::StoreFloat: return "StoreFloat";
+	default: return "unknown";
+	}
+}
 
 void CodeChunk::add_constant(Constant_t cons)
 {
@@ -13,10 +28,46 @@ void CodeChunk::write(OpCode op)
 	code_data.push_back(static_cast<uint8_t>(op));
 }
 
-CodeChunk ales::compile(Cell root)
+
+std::ostream& ales::operator<<(std::ostream& out, CodeChunk const& chunk)
 {
-	CodeChunk chunk;
+	size_t next_op_offset = 0;
+	while (next_op_offset < chunk.code_data.size())
+	{
+		OpCode const op = static_cast<OpCode>(chunk.code_data[next_op_offset]);
+		next_op_offset += sizeof(OpCode);
+		switch (op)
+		{
+		case OpCode::AddInt: break;
+		case OpCode::AddFloat: break;
+		case OpCode::PushInt: 
+			next_op_offset += sizeof(Int_t);
+			break;
+		case OpCode::PushFloat:
+			next_op_offset += sizeof(Float_t);
+			break;
+		case OpCode::StoreInt: break;
+		case OpCode::StoreFloat: break;
+		default: ;
+		}
+		out << to_string(op) << "\n";
+	}
+	return out;
+}
+
+CodeChunk Compiler::compile(Cell cell)
+{
 	std::visit(overloaded{
+		[&](Statement const& statement)
+		{
+			for (auto it = statement.cells.rbegin(); it != statement.cells.rend(); ++it)
+				compile(*it);
+		},
+		[&](Symbol const& sym)
+		{
+			auto compiled_symbol = symbol_compilers[sym.name]();
+			chunk.code_data.insert(chunk.code_data.end(), compiled_symbol.begin(), compiled_symbol.end());
+		},
 		[&](Int_t value)
 		{
 			chunk.write(OpCode::PushInt);
@@ -24,9 +75,14 @@ CodeChunk ales::compile(Cell root)
 		},
 		[&](Float_t value)
 		{
+			chunk.write(OpCode::PushFloat);
 			chunk.write(value);
 		},
-	}, root.value);
+		[&](String_t value)
+		{
+		},
+	}, cell.value);
+	return chunk;
 }
 
 void VirtualMachine::run(CodeChunk code_chunk)

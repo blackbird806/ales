@@ -5,28 +5,22 @@
 
 int main()
 {
-	//std::ifstream source("../../src/test.als");
-	//std::string const code((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
-	//ales::Lexer lexer(code);
-	//ales::Parser parser(lexer);
-	//auto c = parser.parse();
-	//std::cout << c.value();
-	
-	ales::CodeChunk code{};
-	code.code_data = {
-		(uint8_t)ales::OpCode::PushInt,
-		(uint8_t)2,
-		(uint8_t)0,
-		(uint8_t)0,
-		(uint8_t)0,
-		(uint8_t)ales::OpCode::PushInt,
-		(uint8_t)7,
-		(uint8_t)0,
-		(uint8_t)0,
-		(uint8_t)0,
-		(uint8_t)ales::OpCode::AddInt, // 2 + 7
+	std::ifstream source("../../src/test.als");
+	std::string const code((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
+	ales::Lexer lexer(code);
+	ales::Parser parser(lexer);
+	auto c = parser.parse();
+	std::cout << c.value() << "\n";
+	ales::Compiler compiler;
+	compiler.symbol_compilers["+"] = []()
+	{
+		ales::CodeChunk chunk;
+		chunk.write(ales::OpCode::AddInt);
+		return chunk.code_data;
 	};
+	auto chunk = compiler.compile(c.value());
 	ales::VirtualMachine vm;
-	vm.run(code);
+	std::cout << chunk;
+	vm.run(chunk);
 	return 0;
 }

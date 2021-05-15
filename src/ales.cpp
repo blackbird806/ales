@@ -193,13 +193,6 @@ std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 		[&out](Int_t arg) { out << arg << " "; },
 		[&out](Float_t arg) { out << std::fixed << arg << " "; },
 		[&out](String_t const& arg){ out << std::quoted(arg) << " "; },
-		[&out](List_t const& arg)
-		{
-			out << '[';
-			for (auto const& e : arg)
-				out << e << ", ";
-			out << "] ";
-		},
 		[&out](Symbol const& arg) { out << "[Sym : " << arg.name << "] "; },
 		[&out](Statement const& arg)
 		{

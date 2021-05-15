@@ -13,9 +13,14 @@ namespace ales
 	enum class OpCode : uint8_t
 	{
 		AddInt,
+		AddFloat,
 		PushInt,
-		StoreInt
+		PushFloat,
+		StoreInt,
+		StoreFloat,
 	};
+
+	const char* to_string(OpCode e);
 
 	using Constant_t = std::variant<Int_t, Float_t, String_t>;
 	using ConstantID_t = int32_t;
@@ -30,11 +35,11 @@ namespace ales
 		void write(T value)
 		{
 			static_assert(std::is_trivially_copyable_v<T> == true);
-			size_t const offset = chunk.code_data.size();
-			chunk.code_data.resize(offset + sizeof(T));
-			memccpy(&chunk.code_data[offset], &value, sizeof(T));
+			size_t const offset = code_data.size();
+			code_data.resize(offset + sizeof(T));
+			memcpy(&code_data[offset], &value, sizeof(T));
 		}
-		
+
 		ConstantID_t nextId = 0;
 
 		// @Performance use std vector here ?
@@ -42,8 +47,19 @@ namespace ales
 		std::vector<uint8_t> code_data;
 	};
 
-	CodeChunk compile(Cell root);
+	std::ostream& operator<<(std::ostream& out, CodeChunk const& c);
 	
+	class Compiler
+	{
+	public:
+		using CompileSymbolFn_t = std::vector<uint8_t>(*)();
+
+		CodeChunk compile(Cell root);
+
+		CodeChunk chunk;
+		std::unordered_map<std::string, CompileSymbolFn_t> symbol_compilers;
+	};
+
 	
 	class VirtualMachine
 	{

@@ -13,7 +13,6 @@ namespace ales
 {
 	using Float_t = float;
 	using Int_t = int;
-	using List_t = std::vector<struct Cell>;
 	using String_t = std::string;
 
 	struct Statement
@@ -28,7 +27,7 @@ namespace ales
 
 	struct Cell
 	{
-		using CellValue_t = std::variant<Int_t, Float_t, List_t, String_t, Symbol, Statement>;
+		using CellValue_t = std::variant<Int_t, Float_t, String_t, Symbol, Statement>;
 		CellValue_t value;
 	};
 
