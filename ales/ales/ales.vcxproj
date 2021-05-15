@@ -148,10 +148,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ales.cpp" />
+    <ClCompile Include="..\..\src\vm.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\ales.hpp" />
+    <ClInclude Include="..\..\include\vm.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

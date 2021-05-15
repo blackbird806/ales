@@ -21,9 +21,15 @@
     <ClCompile Include="..\..\src\ales.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\vm.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\ales.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\vm.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

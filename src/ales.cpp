@@ -16,9 +16,19 @@ static bool is_blank(char c)
 	return isspace(c);
 }
 
+static bool is_identifier_special_char(char c)
+{
+	return c == '_' || c == '-' || c == '+'
+		|| c == '*' || c == '/' || c == '%'
+		|| c == '^' || c == '&' || c == '$'
+		|| c == '!' || c == '?' || c == '~'
+		|| c == '#' || c == '<' || c == '>'
+		|| c == '=';
+}
+
 Lexer::Lexer(std::string_view src) : source(src)
 {
-	
+
 }
 
 std::optional<Token> Lexer::read_next_token()
@@ -32,20 +42,22 @@ std::optional<Token> Lexer::read_next_token()
 
 	if (index == source.size()) 
 		return {};
-	
+
+	// comments
 	if (source[index] == ';')
 	{
 		while (index < source.size() && source[index++] != '\n') {}
 		goto l_start;
 	}
 
-	// node open / close
+	// node open
 	if (contains(node_open_chars, source[index]))
 	{
 		index++;
 		return Token{ Token::Type::NodeOpen, current_line };
 	}
 	
+	// node close
 	if (contains(node_close_chars, source[index]))
 	{
 		index++;
@@ -53,10 +65,10 @@ std::optional<Token> Lexer::read_next_token()
 	}
 	
 	// identifiers
-	if (isalpha(source[index]))
+	if (isalpha(source[index]) || is_identifier_special_char(source[index]))
 	{
 		auto const first = index;
-		while (isalnum(source[index]) || source[index] == '_' || source[index] == '-')
+		while (isalnum(source[index]) || is_identifier_special_char(source[index]))
 		{
 			index++;
 		}
@@ -111,18 +123,6 @@ std::optional<Token> Lexer::read_next_token()
 	return {};
 }
 
-std::queue<Token> Lexer::lex()
-{
-	std::queue<Token> tokens;
-
-	for (std::optional<Token> tk = read_next_token(); tk.has_value(); tk = read_next_token())
-	{
-		tokens.push(tk.value());
-	}
-		
-	return tokens;
-}
-
 void Lexer::error(std::string_view msg)
 {
 	std::cerr << "lexer error line " << current_line << " - " << msg << "\n";
@@ -134,20 +134,20 @@ Parser::Parser(Lexer& lexer_) : lexer(&lexer_)
 
 std::optional<Cell> Parser::parse()
 {
-	tokens = lexer->lex();
 	return parse_statement();
 }
 
 std::optional<Cell> Parser::parse_statement()
 {
-	if (tokens.empty())
+	auto const tk = lexer->read_next_token();
+	
+	if (!tk)
 	{
 		error("Statement must end with ')' token", {});
 		return {};
 	}
 	
-	Token const current = tokens.front();
-	tokens.pop();
+	Token const& current = tk.value();
 	
 	if (current.type == Token::Type::NodeOpen)
 	{
@@ -186,10 +186,6 @@ void Parser::error(std::string_view msg, Token tk)
 {
 	std::cerr << "parser error line " << tk.line << " : " << msg << "\n";
 }
-
-// https://en.cppreference.com/w/cpp/utility/variant/visit
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 
 std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 {

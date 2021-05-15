@@ -6,7 +6,6 @@
 #include <string>
 #include <optional>
 #include <iosfwd>
-#include <queue>
 #include <string_view>
 #include <unordered_map>
 
@@ -32,6 +31,10 @@ namespace ales
 		using CellValue_t = std::variant<Int_t, Float_t, List_t, String_t, Symbol, Statement>;
 		CellValue_t value;
 	};
+
+	// https://en.cppreference.com/w/cpp/utility/variant/visit
+	template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+	template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 	
 	std::ostream& operator<<(std::ostream& out, Cell const& c);
 
@@ -61,22 +64,20 @@ namespace ales
 	{
 		explicit Lexer(std::string_view src);
 		std::optional<Token> read_next_token();
-		[[nodiscard]] std::queue<Token> lex();
 		void error(std::string_view msg);
 
 		std::string_view source;
 		size_t index = 0;
-		int current_line = 0;
+		int current_line = 1;
 	};
 
 	struct Parser
 	{
 		explicit Parser(Lexer& lexer);
-		std::optional<Cell> parse();
-		std::optional<Cell> parse_statement();
+		[[nodiscard]] std::optional<Cell> parse();
+		[[nodiscard]] std::optional<Cell> parse_statement();
 		void error(std::string_view msg, Token tk);
 		
-		std::queue<Token> tokens;
 		size_t index = 0;
 		Lexer* lexer;
 	};
@@ -85,11 +86,7 @@ namespace ales
 	{
 		std::unordered_map<std::string, Cell> symbols;
 	};
-	
-	class Interpreter
-	{
-		
-	};
+
 }
 
 #endif
