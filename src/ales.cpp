@@ -99,7 +99,7 @@ std::optional<Token> Lexer::read_next_token()
 		if (is_float)
 			return Token{ Token::Type::FloatLiteral,
 				current_line,
-				static_cast<Float_t>(std::stol(tok_str)) };
+				static_cast<Float_t>(std::stod(tok_str)) };
 
 		return Token{	Token::Type::IntLiteral,
 						current_line,
@@ -160,6 +160,9 @@ std::optional<Cell> Parser::parse_statement()
 			else 
 				break;
 		}
+		if (st.cells.size() >= max_statement_elements)
+			error("statement can have max " + std::to_string(max_statement_elements) + " elements", current);
+		
 		return Cell{ st };
 	}
 	if (current.type == Token::Type::IntLiteral)
@@ -174,6 +177,10 @@ std::optional<Cell> Parser::parse_statement()
 	{
 		return Cell{ std::get<String_t>(current.value) };
 	}
+	else if (current.type == Token::Type::BoolLiteral)
+	{
+		return Cell{ std::get<Bool_t>(current.value) };
+	}
 	else if (current.type == Token::Type::Identifier)
 	{
 		return Cell{ Symbol{std::get<String_t>(current.value)} };
@@ -182,7 +189,7 @@ std::optional<Cell> Parser::parse_statement()
 	return {};
 }
 
-void Parser::error(std::string_view msg, Token tk)
+void Parser::error(std::string_view msg, Token const& tk)
 {
 	std::cerr << "parser error line " << tk.line << " : " << msg << "\n";
 }
@@ -191,6 +198,7 @@ std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 {
 	std::visit(overloaded {
 		[&out](Int_t arg) { out << arg << " "; },
+		[&out](Bool_t arg) { out << std::boolalpha << arg << " "; },
 		[&out](Float_t arg) { out << std::fixed << arg << " "; },
 		[&out](String_t const& arg){ out << std::quoted(arg) << " "; },
 		[&out](Symbol const& arg) { out << "[Sym : " << arg.name << "] "; },

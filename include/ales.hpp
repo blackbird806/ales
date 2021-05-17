@@ -8,17 +8,22 @@
 #include <iosfwd>
 #include <string_view>
 #include <unordered_map>
+#include <limits>
 
 namespace ales
 {
 	using Float_t = float;
 	using Int_t = int;
 	using String_t = std::string;
+	using Bool_t = bool;
 
 	struct Statement
 	{
 		std::vector<struct Cell> cells;
 	};
+
+	using ArgCount_t = uint8_t;
+	auto constexpr max_statement_elements = std::numeric_limits<ArgCount_t>::max();
 
 	struct Symbol
 	{
@@ -27,7 +32,7 @@ namespace ales
 
 	struct Cell
 	{
-		using CellValue_t = std::variant<Int_t, Float_t, String_t, Symbol, Statement>;
+		using CellValue_t = std::variant<Int_t, Float_t, String_t, Bool_t, Symbol, Statement>;
 		CellValue_t value;
 	};
 
@@ -49,10 +54,11 @@ namespace ales
 			Identifier,
 			IntLiteral,
 			FloatLiteral,
+			BoolLiteral,
 			StringLiteral,
 		};
 
-		using TokenValue_t = std::variant<Int_t, Float_t, String_t>;
+		using TokenValue_t = std::variant<Int_t, Float_t, String_t, Bool_t>;
 		
 		Type type;
 		int line = -1;
@@ -75,7 +81,7 @@ namespace ales
 		explicit Parser(Lexer& lexer);
 		[[nodiscard]] std::optional<Cell> parse();
 		[[nodiscard]] std::optional<Cell> parse_statement();
-		void error(std::string_view msg, Token tk);
+		void error(std::string_view msg, Token const& tk);
 		
 		size_t index = 0;
 		Lexer* lexer;

@@ -15,7 +15,7 @@ int main()
 	compiler.symbol_compilers["+"] = []()
 	{
 		ales::CodeChunk chunk;
-		chunk.write(ales::OpCode::AddInt);
+		chunk.write(ales::OpCode::AddFloat);
 		return chunk.code_data;
 	};
 	auto chunk = compiler.compile(c.value());

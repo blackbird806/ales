@@ -78,6 +78,9 @@ CodeChunk Compiler::compile(Cell cell)
 			chunk.write(OpCode::PushFloat);
 			chunk.write(value);
 		},
+		[&](Bool_t value)
+		{
+		},
 		[&](String_t value)
 		{
 		},
@@ -95,16 +98,21 @@ void VirtualMachine::run(CodeChunk code_chunk)
 		
 		switch (op)
 		{
-		case OpCode::AddInt:
+		case OpCode::AddFloat:
 		{
-			Int_t const a = pop<Int_t>();
-			Int_t const b = pop<Int_t>();
-			push<Int_t>(a + b);
+			Float_t const a = pop<Float_t>();
+			Float_t const b = pop<Float_t>();
+			push<Float_t>(a + b);
 			break;
 		}
 		case OpCode::PushInt:
 		{
 			push<Int_t>(read<Int_t>(code_chunk.code_data, next_op_offset));
+			break;
+		}
+		case OpCode::PushFloat:
+		{
+			push<Float_t>(read<Float_t>(code_chunk.code_data, next_op_offset));
 			break;
 		}
 		case OpCode::StoreInt:
