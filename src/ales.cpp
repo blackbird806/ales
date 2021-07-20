@@ -134,10 +134,10 @@ Parser::Parser(Lexer& lexer_) : lexer(&lexer_)
 
 std::optional<Cell> Parser::parse()
 {
-	return parse_statement();
+	return parse_statement(nullptr);
 }
 
-std::optional<Cell> Parser::parse_statement()
+std::optional<Cell> Parser::parse_statement(Statement* parent)
 {
 	auto const tk = lexer->read_next_token();
 	
@@ -152,9 +152,11 @@ std::optional<Cell> Parser::parse_statement()
 	if (current.type == Token::Type::NodeOpen)
 	{
 		Statement st;
+		st.parent = parent;
+		st.line = current.line;
 		while (true)
 		{
-			auto const res = parse_statement();
+			auto const res = parse_statement(&st);
 			if (res.has_value())
 				st.cells.push_back(res.value());
 			else 
@@ -183,7 +185,11 @@ std::optional<Cell> Parser::parse_statement()
 	}
 	else if (current.type == Token::Type::Identifier)
 	{
-		return Cell{ Symbol{std::get<String_t>(current.value)} };
+		if (parent == nullptr || parent->cells.empty())
+		{
+			return Cell{ Function{std::get<String_t>(current.value)} };
+		}
+		return Cell{ Variable{std::get<String_t>(current.value)} };
 	}
 	
 	return {};
@@ -201,7 +207,8 @@ std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 		[&out](Bool_t arg) { out << std::boolalpha << arg << " "; },
 		[&out](Float_t arg) { out << std::fixed << arg << " "; },
 		[&out](String_t const& arg){ out << std::quoted(arg) << " "; },
-		[&out](Symbol const& arg) { out << "[Sym : " << arg.name << "] "; },
+		[&out](Function const& arg) { out << "[Sym : " << arg.name << "] "; },
+		[&out](Variable const& arg) { out << "[Var : " << arg.name << "] "; },
 		[&out](Statement const& arg)
 		{
 			out << "(";

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <stack>
 #include <variant>
 
 // @TODO common include
@@ -15,9 +16,10 @@ namespace ales
 		AddInt,
 		AddFloat,
 		PushInt,
+		PushString,
 		PushFloat,
-		StoreInt,
-		StoreFloat,
+		PushVar,
+		Store,
 	};
 
 	const char* to_string(OpCode e);
@@ -40,6 +42,30 @@ namespace ales
 			memcpy(&code_data[offset], &value, sizeof(T));
 		}
 
+		void writeStr(std::string const& value)
+		{
+			size_t const offset = code_data.size();
+			code_data.resize(offset + value.size() + 1);
+			memcpy(&code_data[offset], value.data(), value.size() + 1);
+		}
+		
+		template<typename T>
+		T read(size_t& offset) const
+		{
+			static_assert(std::is_trivially_copyable_v<T> == true);
+			T const val = *reinterpret_cast<T const*>(&code_data[offset]);
+			offset += sizeof(T);
+			return val;
+		}
+
+		std::string readStr(size_t& offset) const
+		{
+			size_t const len = strlen((char*)&code_data[offset]);
+			std::string const str((char*)&code_data[offset], (char*)&code_data[offset + len]);
+			offset += len + 1;
+			return str;
+		}
+		
 		ConstantID_t nextId = 0;
 
 		// @Performance use std vector here ?
@@ -52,50 +78,22 @@ namespace ales
 	class Compiler
 	{
 	public:
-		using CompileSymbolFn_t = std::vector<uint8_t>(*)();
+		using CompileFuncFn_t = std::vector<uint8_t>(*)(Statement const& parent, Compiler& compiler);
 
-		CodeChunk compile(Cell root);
+		CodeChunk compile(Cell const& root, Statement const* enclosing = nullptr);
 
 		CodeChunk chunk;
-		std::unordered_map<std::string, CompileSymbolFn_t> symbol_compilers;
+		std::unordered_map<std::string, CompileFuncFn_t> func_compiler;
 	};
-
 	
 	class VirtualMachine
 	{
 	public:
 
 		void run(CodeChunk code_chunk);
-
-		template<typename T>
-		void push(T value)
-		{
-			static_assert(std::is_trivially_copyable_v<T> == true);
-			size_t const current_offset = stack_memory.size();
-			stack_memory.resize(current_offset + sizeof(T));
-			(*reinterpret_cast<T*>(&stack_memory[current_offset])) = value;
-		}
-
-		template<typename T>
-		T pop()
-		{
-			static_assert(std::is_trivially_copyable_v<T> == true);
-			size_t const start_offset = stack_memory.size() - sizeof(T);
-			T const value = *reinterpret_cast<T*>(&stack_memory[start_offset]);
-			stack_memory.erase(stack_memory.begin() + start_offset, stack_memory.end());
-			return value;
-		}
 		
-		template<typename T>
-		T read(std::vector<uint8_t> const& code, size_t& offset)
-		{
-			static_assert(std::is_trivially_copyable_v<T> == true);
-			T const val = *reinterpret_cast<T const*>(&code[offset]);
-			offset += sizeof(T);
-			return val;
-		}
-
-		std::vector<uint8_t> stack_memory;
+		Environement mainEnv;
+		std::stack<Cell> stack_memory;
 	};
 }
 
