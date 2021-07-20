@@ -74,13 +74,23 @@ namespace ales
 	};
 
 	std::ostream& operator<<(std::ostream& out, CodeChunk const& c);
+
+	enum class RetType
+	{
+		Err,
+		Void,
+		Int,
+		Float,
+		Bool,
+		String
+	};
 	
 	class Compiler
 	{
 	public:
-		using CompileFuncFn_t = std::vector<uint8_t>(*)(Statement const& parent, Compiler& compiler);
+		using CompileFuncFn_t = RetType(*)(Statement const& parent, Compiler& compiler);
 
-		CodeChunk compile(Cell const& root, Statement const* enclosing = nullptr);
+		RetType compile(Cell const& root, Statement const* enclosing = nullptr);
 
 		CodeChunk chunk;
 		std::unordered_map<std::string, CompileFuncFn_t> func_compiler;

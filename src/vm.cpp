@@ -59,42 +59,54 @@ std::ostream& ales::operator<<(std::ostream& out, CodeChunk const& chunk)
 	return out;
 }
 
-CodeChunk Compiler::compile(Cell const& cell, Statement const* enclosing)
-{	
+RetType Compiler::compile(Cell const& cell, Statement const* enclosing)
+{
+	RetType type = RetType::Void;
 	std::visit(overloaded{
 		[&](Statement const& statement)
 		{
 			if (statement.cells.empty())
 				return;
+			//
+			//for (auto it = statement.cells.begin(); it != statement.cells.end(); ++it)
+			//	compile(*it, &statement);
 			
-			for (auto it = statement.cells.begin() + 1; it != statement.cells.end(); ++it)
-				compile(*it, &statement);
-			
-			compile(*statement.cells.begin(), &statement);
+			type = compile(*statement.cells.begin(), &statement);
 		},
 		[&](Function const& sym)
 		{
 			assert(enclosing != nullptr);
-			auto compiled_func = func_compiler[sym.name](*enclosing, *this);
-			chunk.code_data.insert(chunk.code_data.end(), compiled_func.begin(), compiled_func.end());
+			type = func_compiler[sym.name](*enclosing, *this);
 		},
 		[&](Variable const& value)
 		{
+			chunk.write(OpCode::PushVar);
+			chunk.writeStr(value.name);
 		},
 		[&](Int_t value)
 		{
+			chunk.write(OpCode::PushInt);
+			chunk.write(value);
+			type = RetType::Int;
 		},
 		[&](Float_t value)
 		{
+			chunk.write(OpCode::PushFloat);
+			chunk.write(value);
+			type = RetType::Float;
 		},
 		[&](Bool_t value)
 		{
 		},
 		[&](String_t const& value)
 		{
+			chunk.write(OpCode::PushString);
+			chunk.writeStr(value);
+			type = RetType::String;
 		},
 	}, cell.value);
-	return chunk;
+	
+	return type;
 }
 
 static Int_t cellCastInt(Cell const& c)

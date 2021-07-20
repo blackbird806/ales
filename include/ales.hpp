@@ -17,6 +17,8 @@ namespace ales
 	using String_t = std::string;
 	using Bool_t = bool;
 
+
+
 	struct Environement
 	{
 		std::unordered_map<std::string, struct Cell> symbols;

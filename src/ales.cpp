@@ -189,7 +189,7 @@ std::optional<Cell> Parser::parse_statement(Statement* parent)
 		{
 			return Cell{ Function{std::get<String_t>(current.value)} };
 		}
-		return Cell{ Variable{std::get<String_t>(current.value)} };
+		return Cell{ Variable{ std::get<String_t>(current.value)} };
 	}
 	
 	return {};
