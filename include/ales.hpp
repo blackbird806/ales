@@ -17,8 +17,6 @@ namespace ales
 	using String_t = std::string;
 	using Bool_t = bool;
 
-
-
 	struct Environement
 	{
 		std::unordered_map<std::string, struct Cell> symbols;
@@ -35,19 +33,33 @@ namespace ales
 	using ArgCount_t = uint8_t;
 	auto constexpr max_statement_elements = std::numeric_limits<ArgCount_t>::max();
 
-	struct Function
+	struct FunctionCall
 	{
 		std::string name;
 	};
 
 	struct Variable
 	{
+		
+	};
+
+	struct Function
+	{
+		using CellFunction_t = Cell(*)();
+		CellFunction_t fn;
+		size_t index;
+	};
+	
+	struct Symbol
+	{
+		using SymbolValue_t = std::variant<Variable, Function>;
 		std::string name;
+		SymbolValue_t value;
 	};
 	
 	struct Cell
 	{
-		using CellValue_t = std::variant<Int_t, Float_t, String_t, Bool_t, Function, Variable, Statement>;
+		using CellValue_t = std::variant<Int_t, Float_t, String_t, Bool_t, FunctionCall, Symbol, Statement>;
 		CellValue_t value;
 	};
 
@@ -94,7 +106,7 @@ namespace ales
 	struct Parser
 	{
 		explicit Parser(Lexer& lexer);
-		[[nodiscard]] std::optional<Cell> parse();
+		[[nodiscard]] std::vector<Cell> parse();
 		[[nodiscard]] std::optional<Cell> parse_statement(Statement* parent);
 		void error(std::string_view msg, Token const& tk);
 		

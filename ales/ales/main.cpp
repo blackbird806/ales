@@ -11,8 +11,11 @@ int main()
 	std::string const code((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
 	ales::Lexer lexer(code);
 	ales::Parser parser(lexer);
-	auto c = parser.parse();
-	std::cout << c.value() << "\n";
+	auto cells = parser.parse();
+
+	for (auto const& c : cells)
+		std::cout << c << "\n";
+	
 	ales::Compiler compiler;
 
 	compiler.func_compiler["+"] = [](ales::Statement const& enclosing, ales::Compiler& compiler)
@@ -24,7 +27,7 @@ int main()
 		}
 		
 		// TODO: review how to handle compilation order
-		ales::OpCode addOp = ales::OpCode::AddInt;
+		ales::OpCode addOp;
 		ales::RetType const t1 = compiler.compile(enclosing.cells[1], &enclosing);
 		if (t1 == ales::RetType::Int)
 		{
@@ -71,14 +74,30 @@ int main()
 		}
 		
 		compiler.chunk.write(ales::OpCode::Store);
-		compiler.chunk.writeStr(std::get<ales::Variable>(enclosing.cells[1].value).name);
+		compiler.chunk.writeStr(std::get<ales::Symbol>(enclosing.cells[1].value).name);
 		return ales::RetType::Void;
 	};
 
-	compiler.compile(c.value());
+	compiler.func_compiler["defun"] = [](ales::Statement const& enclosing, ales::Compiler& compiler)
+	{
+		if (enclosing.cells.size() < 3)
+		{
+			printf("to few args for function declaration\n");
+			return ales::RetType::Err;
+		}
+
+		compiler.addFunction(std::get<ales::Symbol>(enclosing.cells[1].value).name, std::vector<ales::Cell>(enclosing.cells.begin() + 3, enclosing.cells.end()), &enclosing);
+		
+		return ales::RetType::Void;
+	};
+	
+	for (auto const& c : cells)
+		compiler.compile(c);
+
 	ales::VirtualMachine vm;
 	std::cout << compiler.chunk;
 	vm.run(compiler.chunk);
-	std::cout << "a = " << vm.mainEnv.symbols["a"];
+	std::cout << "a = " << vm.mainEnv.symbols["a"] << "\n";
+	std::cout << "b = " << vm.mainEnv.symbols["b"] << "\n";
 	return 0;
 }

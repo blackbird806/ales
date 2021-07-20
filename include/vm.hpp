@@ -20,6 +20,7 @@ namespace ales
 		PushFloat,
 		PushVar,
 		Store,
+		FnCall,
 	};
 
 	const char* to_string(OpCode e);
@@ -91,8 +92,14 @@ namespace ales
 		using CompileFuncFn_t = RetType(*)(Statement const& parent, Compiler& compiler);
 
 		RetType compile(Cell const& root, Statement const* enclosing = nullptr);
-
+		RetType compileTo(Cell const& root, CodeChunk& codechunk, Statement const* enclosing = nullptr);
+		size_t compileFunction(std::vector<Cell> const&, Statement const* enclosing = nullptr);
+		void addFunction(std::string const& name, std::vector<Cell> const& cells, Statement const* enclosing);
+		
 		CodeChunk chunk;
+		std::vector<CodeChunk> functions;
+
+		std::unordered_map<std::string, size_t> functionMap;
 		std::unordered_map<std::string, CompileFuncFn_t> func_compiler;
 	};
 	

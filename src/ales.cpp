@@ -132,9 +132,18 @@ Parser::Parser(Lexer& lexer_) : lexer(&lexer_)
 {
 }
 
-std::optional<Cell> Parser::parse()
+std::vector<Cell> Parser::parse()
 {
-	return parse_statement(nullptr);
+	std::vector<Cell> statements;
+	while (true)
+	{
+		std::optional<Cell> c = parse_statement(nullptr);
+		if (c)
+			statements.push_back(*c);
+		else
+			break;
+	}
+	return statements;
 }
 
 std::optional<Cell> Parser::parse_statement(Statement* parent)
@@ -143,7 +152,6 @@ std::optional<Cell> Parser::parse_statement(Statement* parent)
 	
 	if (!tk)
 	{
-		error("Statement must end with ')' token", {});
 		return {};
 	}
 	
@@ -187,9 +195,9 @@ std::optional<Cell> Parser::parse_statement(Statement* parent)
 	{
 		if (parent == nullptr || parent->cells.empty())
 		{
-			return Cell{ Function{std::get<String_t>(current.value)} };
+			return Cell{ FunctionCall{std::get<String_t>(current.value)} };
 		}
-		return Cell{ Variable{ std::get<String_t>(current.value)} };
+		return Cell{ Symbol{ std::get<String_t>(current.value)} };
 	}
 	
 	return {};
@@ -207,8 +215,8 @@ std::ostream& ales::operator<<(std::ostream& out, Cell const& c)
 		[&out](Bool_t arg) { out << std::boolalpha << arg << " "; },
 		[&out](Float_t arg) { out << std::fixed << arg << " "; },
 		[&out](String_t const& arg){ out << std::quoted(arg) << " "; },
-		[&out](Function const& arg) { out << "[Sym : " << arg.name << "] "; },
-		[&out](Variable const& arg) { out << "[Var : " << arg.name << "] "; },
+		[&out](FunctionCall const& arg) { out << "[FuncCall : " << arg.name << "] "; },
+		[&out](Symbol const& arg) { out << "[Sym : " << arg.name << "] "; },
 		[&out](Statement const& arg)
 		{
 			out << "(";
