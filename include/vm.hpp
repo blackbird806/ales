@@ -6,21 +6,18 @@
 #include <stack>
 #include <variant>
 
-// @TODO common include
+// TODO common include
 #include "ales.hpp"
 
 namespace ales
 {
 	enum class OpCode : uint8_t
 	{
-		AddInt,
-		AddFloat,
-		PushInt,
-		PushString,
-		PushFloat,
+		Add,
+		PushConst,
 		PushVar,
 		Store,
-		FnCall,
+		Call,
 	};
 
 	const char* to_string(OpCode e);
@@ -30,7 +27,10 @@ namespace ales
 	
 	struct CodeChunk
 	{
-		void add_constant(Constant_t);
+		// TODO: refactor this, these functions are probably UB and error prone
+		
+		ConstantID_t add_constant(Constant_t);
+		Constant_t get_constant(ConstantID_t);
 
 		void write(OpCode op);
 		
@@ -69,8 +69,7 @@ namespace ales
 		
 		ConstantID_t nextId = 0;
 
-		// @Performance use std vector here ?
-		std::unordered_map<Constant_t, ConstantID_t> constants;
+		std::vector<Constant_t> constants;
 		std::vector<uint8_t> code_data;
 	};
 
@@ -89,16 +88,18 @@ namespace ales
 	class Compiler
 	{
 	public:
-		using CompileFuncFn_t = RetType(*)(Statement const& parent, Compiler& compiler);
+		using CompileFuncFn_t = RetType(*)(Compiler& compiler);
 
-		RetType compile(Cell const& root, Statement const* enclosing = nullptr);
-		RetType compileTo(Cell const& root, CodeChunk& codechunk, Statement const* enclosing = nullptr);
-		size_t compileFunction(std::vector<Cell> const&, Statement const* enclosing = nullptr);
-		void addFunction(std::string const& name, std::vector<Cell> const& cells, Statement const* enclosing);
+		RetType compile(ASTNode const& root);
+		RetType compileTo(ASTNode const& root, CodeChunk& codechunk);
+		size_t compileFunction(std::vector<ASTNode> const&);
+		void addFunction(FuncDecl const&);
 		
 		CodeChunk chunk;
 		std::vector<CodeChunk> functions;
 
+
+		std::vector<ASTNode> constants;
 		std::unordered_map<std::string, size_t> functionMap;
 		std::unordered_map<std::string, CompileFuncFn_t> func_compiler;
 	};
@@ -109,8 +110,7 @@ namespace ales
 
 		void run(CodeChunk code_chunk);
 		
-		Environement mainEnv;
-		std::stack<Cell> stack_memory;
+		std::stack<ASTNode> stack_memory;
 	};
 }
 

@@ -17,19 +17,6 @@ namespace ales
 	using String_t = std::string;
 	using Bool_t = bool;
 
-	struct Environement
-	{
-		std::unordered_map<std::string, struct Cell> symbols;
-	};
-	
-	struct Statement
-	{
-		Statement* parent = nullptr;
-		std::vector<struct Cell> cells;
-		std::optional<Environement> local_env;
-		int line;
-	};
-
 	using ArgCount_t = uint8_t;
 	auto constexpr max_statement_elements = std::numeric_limits<ArgCount_t>::max();
 
@@ -40,34 +27,30 @@ namespace ales
 
 	struct Variable
 	{
-		
+		std::string name;
 	};
 
-	struct Function
+	struct FuncDecl
 	{
-		using CellFunction_t = Cell(*)();
-		CellFunction_t fn;
-		size_t index;
-	};
-	
-	struct Symbol
-	{
-		using SymbolValue_t = std::variant<Variable, Function>;
 		std::string name;
-		SymbolValue_t value;
+		std::vector<std::string> argNames;
+		struct ASTNode* body;
 	};
 	
-	struct Cell
+	struct ASTNode
 	{
-		using CellValue_t = std::variant<Int_t, Float_t, String_t, Bool_t, FunctionCall, Symbol, Statement>;
-		CellValue_t value;
+		//using Value_t = std::variant<Int_t, Float_t, String_t, Bool_t, FunctionCall, FuncDecl, Variable>;
+		using List_t = std::vector<ASTNode>;
+		using Value_t = std::variant<Int_t, Float_t, String_t, Bool_t, List_t>;
+		Value_t value;
+		int line;
 	};
 
 	// https://en.cppreference.com/w/cpp/utility/variant/visit
 	template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 	template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 	
-	std::ostream& operator<<(std::ostream& out, Cell const& c);
+	std::ostream& operator<<(std::ostream& out, ASTNode const& c);
 
 	constexpr char node_open_chars[] = { '(' };
 	constexpr char node_close_chars[] = { ')' };
@@ -92,6 +75,8 @@ namespace ales
 		TokenValue_t value;
 	};
 
+	const char* to_string(Token::Type e);
+	
 	struct Lexer
 	{
 		explicit Lexer(std::string_view src);
@@ -106,8 +91,12 @@ namespace ales
 	struct Parser
 	{
 		explicit Parser(Lexer& lexer);
-		[[nodiscard]] std::vector<Cell> parse();
-		[[nodiscard]] std::optional<Cell> parse_statement(Statement* parent);
+		[[nodiscard]] std::vector<ASTNode> parse();
+		[[nodiscard]] std::optional<ASTNode> parse_statement();
+		[[nodiscard]] std::optional<ASTNode> parse_list();
+		[[nodiscard]] std::optional<ASTNode> parse_atom(Token);
+		[[nodiscard]] std::optional<ASTNode> parse_function_decl();
+		bool expect(Token::Type type);
 		void error(std::string_view msg, Token const& tk);
 		
 		size_t index = 0;
