@@ -7,7 +7,6 @@
 #include <optional>
 #include <iosfwd>
 #include <string_view>
-#include <unordered_map>
 #include <limits>
 
 namespace ales
@@ -20,28 +19,23 @@ namespace ales
 	using ArgCount_t = uint8_t;
 	auto constexpr max_statement_elements = std::numeric_limits<ArgCount_t>::max();
 
-	struct FunctionCall
+	struct Symbol
 	{
 		std::string name;
 	};
 
-	struct Variable
+	using CellList_t = std::vector<struct ASTCell>;
+	
+	struct FunctionDecl
 	{
-		std::string name;
-	};
-
-	struct FuncDecl
-	{
-		std::string name;
+		std::string funcName;
 		std::vector<std::string> argNames;
-		struct ASTNode* body;
+		CellList_t body;
 	};
 	
-	struct ASTNode
+	struct ASTCell
 	{
-		//using Value_t = std::variant<Int_t, Float_t, String_t, Bool_t, FunctionCall, FuncDecl, Variable>;
-		using List_t = std::vector<ASTNode>;
-		using Value_t = std::variant<Int_t, Float_t, String_t, Bool_t, List_t>;
+		using Value_t = std::variant<Int_t, Float_t, String_t, Bool_t, Symbol, FunctionDecl, CellList_t>;
 		Value_t value;
 		int line;
 	};
@@ -50,7 +44,7 @@ namespace ales
 	template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 	template<class... Ts> overloaded(Ts...)->overloaded<Ts...>;
 	
-	std::ostream& operator<<(std::ostream& out, ASTNode const& c);
+	std::ostream& operator<<(std::ostream& out, ASTCell const& c);
 
 	constexpr char node_open_chars[] = { '(' };
 	constexpr char node_close_chars[] = { ')' };
@@ -91,14 +85,13 @@ namespace ales
 	struct Parser
 	{
 		explicit Parser(Lexer& lexer);
-		[[nodiscard]] std::vector<ASTNode> parse();
-		[[nodiscard]] std::optional<ASTNode> parse_statement();
-		[[nodiscard]] std::optional<ASTNode> parse_list();
-		[[nodiscard]] std::optional<ASTNode> parse_atom(Token);
-		[[nodiscard]] std::optional<ASTNode> parse_function_decl();
+		[[nodiscard]] std::vector<ASTCell> parse();
+		[[nodiscard]] std::optional<ASTCell> parse_list();
+		[[nodiscard]] std::optional<ASTCell> parse_atom(Token);
+		
 		bool expect(Token::Type type);
 		void error(std::string_view msg, Token const& tk);
-		
+
 		size_t index = 0;
 		Lexer* lexer;
 	};

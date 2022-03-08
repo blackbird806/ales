@@ -5,6 +5,7 @@
 #include <vector>
 #include <stack>
 #include <variant>
+#include <unordered_map>
 
 // TODO common include
 #include "ales.hpp"
@@ -30,7 +31,7 @@ namespace ales
 		// TODO: refactor this, these functions are probably UB and error prone
 		
 		ConstantID_t add_constant(Constant_t);
-		Constant_t get_constant(ConstantID_t);
+		Constant_t get_constant(ConstantID_t) const;
 
 		void write(OpCode op);
 		
@@ -74,32 +75,18 @@ namespace ales
 	};
 
 	std::ostream& operator<<(std::ostream& out, CodeChunk const& c);
-
-	enum class RetType
-	{
-		Err,
-		Void,
-		Int,
-		Float,
-		Bool,
-		String
-	};
 	
 	class Compiler
 	{
 	public:
-		using CompileFuncFn_t = RetType(*)(Compiler& compiler);
+		using CompileFuncFn_t = CodeChunk(*)();
 
-		RetType compile(ASTNode const& root);
-		RetType compileTo(ASTNode const& root, CodeChunk& codechunk);
-		size_t compileFunction(std::vector<ASTNode> const&);
-		void addFunction(FuncDecl const&);
+		void compile(ASTCell const& root);
+		void compileTo(ASTCell const& root, CodeChunk& codechunk);
 		
-		CodeChunk chunk;
 		std::vector<CodeChunk> functions;
 
-
-		std::vector<ASTNode> constants;
+		std::vector<ASTCell> constants;
 		std::unordered_map<std::string, size_t> functionMap;
 		std::unordered_map<std::string, CompileFuncFn_t> func_compiler;
 	};
@@ -110,7 +97,7 @@ namespace ales
 
 		void run(CodeChunk code_chunk);
 		
-		std::stack<ASTNode> stack_memory;
+		std::stack<ASTCell> stack_memory;
 	};
 }
 

@@ -15,50 +15,17 @@ int main()
 
 	for (auto const& c : cells)
 		std::cout << c << "\n";
-	
-	//ales::Compiler compiler;
 
-	//compiler.func_compiler["+"] = [](ales::Statement const& enclosing, ales::Compiler& compiler)
-	//{
-	//	if (enclosing.cells.size() < 2)
-	//	{
-	//		printf("error not enough arguments for + line %d\n", enclosing.line);
-	//		return ales::RetType::Err;
-	//	}
-	//	
-	//	// TODO: review how to handle compilation order
-	//	ales::OpCode addOp;
-	//	ales::RetType const t1 = compiler.compile(enclosing.cells[1], &enclosing);
-	//	if (t1 == ales::RetType::Int)
-	//	{
-	//		addOp = ales::OpCode::AddInt;
-	//	}
-	//	else if (t1 == ales::RetType::Float)
-	//	{
-	//		addOp = ales::OpCode::AddFloat;
-	//	}
-	//	else
-	//	{
-	//		printf("error only Int or float can be added\n");
-	//		return ales::RetType::Err;
-	//	}
-	//	
-	//	for (auto it = enclosing.cells.begin() + 2; it != enclosing.cells.end(); ++it)
-	//	{
-	//		ales::RetType const t = compiler.compile(*it, &enclosing);
-	//		if (t != ales::RetType::Int && t != ales::RetType::Float)
-	//		{
-	//			printf("args of + must be either int literal, float literal or a variable !\n");
-	//			return ales::RetType::Err;
-	//		}
-	//		
-	//		compiler.chunk.write(addOp);
-	//	}
-	//	
-	//	if (addOp == ales::OpCode::AddInt)
-	//		return ales::RetType::Int;
-	//	return ales::RetType::Float;
-	//};
+
+	ales::Compiler compiler;
+
+	compiler.func_compiler["+"] = []()
+	{
+		ales::CodeChunk chunk;
+
+		chunk.write(ales::OpCode::Add);
+		return chunk;
+	};
 
 	//compiler.func_compiler["set"] = [](ales::Statement const& enclosing, ales::Compiler& compiler)
 	//{
@@ -91,13 +58,15 @@ int main()
 	//	return ales::RetType::Void;
 	//};
 	//
-	//for (auto const& c : cells)
-	//	compiler.compile(c);
 
-	//ales::VirtualMachine vm;
-	//std::cout << compiler.chunk;
-	//vm.run(compiler.chunk);
-	//std::cout << "a = " << vm.mainEnv.symbols["a"] << "\n";
-	//std::cout << "b = " << vm.mainEnv.symbols["b"] << "\n";
+	compiler.compile(cells[0]);
+
+	int i = 0; 
+	for (auto const& chunk : compiler.functions)
+	{
+		std::cout << i++ << "\n" << chunk << "\n========\n";
+	}
+	ales::VirtualMachine vm;
+	vm.run(compiler.functions[1]);
 	return 0;
 }

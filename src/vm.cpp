@@ -12,7 +12,7 @@ const char* ales::to_string(OpCode e)
 	switch (e)
 	{
 	case OpCode::Add: return "Add";
-	case OpCode::PushConst: return "PushString";
+	case OpCode::PushConst: return "PushConst";
 	case OpCode::PushVar: return "PushVar";
 	case OpCode::Store: return "Store";
 	case OpCode::Call: return "Call";
@@ -31,7 +31,7 @@ ConstantID_t CodeChunk::add_constant(Constant_t cons)
 	return constants.size() - 1;
 }
 
-Constant_t CodeChunk::get_constant(ConstantID_t id)
+Constant_t CodeChunk::get_constant(ConstantID_t id) const
 {
 	return constants[id];
 }
@@ -52,11 +52,20 @@ std::ostream& ales::operator<<(std::ostream& out, CodeChunk const& chunk)
 		switch (op)
 		{
 		case OpCode::Add: break;
-		case OpCode::Call: break;
-		case OpCode::PushConst:
-
+		case OpCode::Call:
+			out << chunk.read<size_t>(next_op_offset);
 			break;
-			
+		case OpCode::PushConst:
+		{
+			auto const& c = chunk.get_constant(chunk.read<ConstantID_t>(next_op_offset));
+			std::visit(overloaded{
+				[&](auto value)
+				{
+					out << value;
+				}
+				}, c);
+		}
+		break;
 		case OpCode::PushVar:
 		case OpCode::Store:
 			out << chunk.readStr(next_op_offset);
@@ -67,77 +76,75 @@ std::ostream& ales::operator<<(std::ostream& out, CodeChunk const& chunk)
 	return out;
 }
 
-RetType Compiler::compile(ASTNode const& cell)
+void Compiler::compile(ASTCell const& cell)
 {
-	return compileTo(cell, chunk);
+	for (auto const& [n, f] : func_compiler)
+	{
+		functionMap[n] = functions.size();
+		functions.push_back(f());
+	}
+	compileTo(cell, functions.emplace_back());
 }
 
-RetType Compiler::compileTo(ASTNode const& cell, CodeChunk& codechunk)
+void Compiler::compileTo(ASTCell const& cell, CodeChunk& codechunk)
 {
-	RetType type = RetType::Void;
-	//std::visit(overloaded{
-	//	[&](FunctionCall const& sym)
-	//	{
-	//		type = func_compiler[sym.name](*this);
-	//		// TODO: recompile function only if inline
-	//		// jump to function else
-	//	},
-	//	[&](FuncDecl const& sym)
-	//	{
-
-	//	},
-	//	[&](Variable const& value)
-	//	{
-	//		// TODO:
-	//		codechunk.write(OpCode::PushVar);
-	//		codechunk.writeStr(value.name);
-	//	},
-	//	[&](Int_t value)
-	//	{
-	//		codechunk.write(OpCode::PushConst);
-	//		codechunk.write(codechunk.add_constant(Constant_t{ value }));
-	//	},
-	//	[&](Float_t value)
-	//	{
-	//		codechunk.write(OpCode::PushConst);
-	//		codechunk.write(codechunk.add_constant(Constant_t{ value }));
-	//	},
-	//	[&](Bool_t value)
-	//	{
-	//		codechunk.write(OpCode::PushConst);
-	//		codechunk.write(codechunk.add_constant(Constant_t{ value }));
-	//	},
-	//	[&](String_t const& value)
-	//	{
-	//		codechunk.write(OpCode::PushConst);
-	//		codechunk.write(codechunk.add_constant(Constant_t{ value }));
-	//	},
-	//}, cell.value);
-	
-	return type;
+	std::visit(overloaded{
+		[&] (CellList_t const& value)
+		{
+			// if list is function call
+			if (!value.empty() && std::holds_alternative<Symbol>(value[0].value))
+			{
+				std::string const& fnName = std::get<Symbol>(value[0].value).name;
+				auto const fnIt = functionMap.find(fnName);
+				if (fnIt != functionMap.end())
+				{
+					for (auto arg = value.begin() + 1; arg != value.end(); ++arg)
+					{
+						compileTo(*arg, codechunk);
+					}
+					
+					codechunk.write(OpCode::Call);
+					codechunk.write(fnIt->second);
+				}
+			}
+			else
+			{
+				for (auto const& e : value)
+					compileTo(e, codechunk);
+			}
+		},
+		[&](FunctionDecl const& value)
+		{
+		},
+		[&](Symbol const& value)
+		{
+			codechunk.write(OpCode::PushVar);
+			codechunk.writeStr(value.name);
+		},
+		[&](Int_t value)
+		{
+			codechunk.write(OpCode::PushConst);
+			codechunk.write(codechunk.add_constant(Constant_t{ value }));
+		},
+		[&](Float_t value)
+		{
+			codechunk.write(OpCode::PushConst);
+			codechunk.write(codechunk.add_constant(Constant_t{ value }));
+		},
+		[&](Bool_t value)
+		{
+			codechunk.write(OpCode::PushConst);
+			codechunk.write(codechunk.add_constant(Constant_t{ value }));
+		},
+		[&](String_t const& value)
+		{
+			codechunk.write(OpCode::PushConst);
+			codechunk.write(codechunk.add_constant(Constant_t{ value }));
+		},
+	}, cell.value);
 }
 
-size_t Compiler::compileFunction(std::vector<ASTNode> const& cells)
-{
-	CodeChunk functionChunk;
-	for (auto const& cell : cells)
-		compileTo(cell, functionChunk);
-	functions.push_back(functionChunk);
-	return functions.size() - 1;
-}
-
-void Compiler::addFunction(FuncDecl const& decl)
-{
-	//functionMap[name] = compileFunction(cells, enclosing);
-	//func_compiler[name] = [](ales::Statement const& enclosing, ales::Compiler& compiler)
-	//{
-	//	compiler.chunk.writeStr(std::get<String_t>(enclosing.cells[0].value));
-	//	compiler.chunk.write(OpCode::Call);
-	//	return RetType::Void;
-	//};
-}
-
-static Int_t cellCastInt(ASTNode const& c)
+static Int_t cellCastInt(ASTCell const& c)
 {
 	if (std::holds_alternative<Float_t>(c.value))
 		return static_cast<Int_t>(std::get<Float_t>(c.value));
@@ -146,7 +153,7 @@ static Int_t cellCastInt(ASTNode const& c)
 	// TODO: handle variables
 }
 
-static Float_t cellCastFloat(ASTNode const& c)
+static Float_t cellCastFloat(ASTCell const& c)
 {
 	if (std::holds_alternative<Int_t>(c.value))
 		return static_cast<Float_t>(std::get<Int_t>(c.value));
@@ -171,17 +178,16 @@ void VirtualMachine::run(CodeChunk code_chunk)
 				auto const n2 = stack_memory.top();
 				stack_memory.pop();
 
-					
-				//stack_memory.push();
+				stack_memory.push({std::get<Int_t>(n1.value) + std::get<Int_t>(n2.value) });
 				break;
 			}
 			case OpCode::PushConst:
 			{
-				int16_t const constantIndex = code_chunk.read<int16_t>(pc);
+				auto const constantIndex = code_chunk.read<ConstantID_t>(pc);
 				std::visit(overloaded{
 					[&](auto value)
 					{
-						stack_memory.push(ASTNode{value});
+						stack_memory.push(ASTCell{value});
 					}
 				}, code_chunk.get_constant(constantIndex));
 				break;
@@ -201,7 +207,7 @@ void VirtualMachine::run(CodeChunk code_chunk)
 			case OpCode::Call:
 			{
 				auto const fnName = code_chunk.readStr(pc);
-				
+					
 				break;
 			}
 			

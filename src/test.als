@@ -1,5 +1,6 @@
 
-(set a (+ (+ 12 (+ 78 6)) 5 5))
+(+ 1 2)
+;; (+ a (+ (+ 12 (+ 78 6)) 5 5))
 
 ; ( set b (+ 45 (+ (+ 78 9 6 2 3))))
 
@@ -11,13 +12,13 @@
 ; pushvar x
 ; add
 
-(defun test (x a b)
-	(+ x x)
-	)
+;; (defun test (x a b)
+;; 	(+ x x)
+;; 	)
 
 
-; pushconst 5
-; call test
-(test 5)
+;; ; pushconst 5
+;; ; call test
+;; (test 5)
 
-; test(5)
+;; ; test(5)
