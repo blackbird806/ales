@@ -1,8 +1,14 @@
 
-(+ 1 2)
-;; (+ a (+ (+ 12 (+ 78 6)) 5 5))
+(print (+ 1 2))
+(print (+ (+ 12 (+ 78 6)) 5 5))
 
-; ( set b (+ 45 (+ (+ 78 9 6 2 3))))
+(print "autre" "oui")
+
+(defun square (x)
+	(* x x)
+	)
+
+(print (square 5))
 
 ; funtion test
 ; arg x

@@ -147,69 +147,49 @@ Parser::Parser(Lexer& lexer_) : lexer(&lexer_)
 {
 }
 
-std::vector<ASTCell> Parser::parse()
+std::vector<Expression> Parser::parse()
 {
-	std::vector<ASTCell> statements;
-	while (expect(Token::Type::NodeOpen))
+	std::vector<Expression> expressions;
+	for (auto tk = lexer->read_next_token(); tk; tk = lexer->read_next_token())
 	{
-		std::optional<ASTCell> c = parse_list();
-		if (c)
-			statements.push_back(*c);
+		if (tk->type == Token::Type::NodeOpen)
+			expressions.push_back({ parse_list() });
 		else
-			break;
+			expressions.push_back({ parse_atom(*tk) });
 	}
-	return statements;
+	return expressions;
 }
 
-std::optional<ASTCell> Parser::parse_list()
+List Parser::parse_list()
 {
-	ASTCell node;
-	CellList_t list;
+	List list;
 	for (auto tk = lexer->read_next_token(); tk && tk->type != Token::Type::NodeClose; tk = lexer->read_next_token())
 	{
-		std::optional<ASTCell> r;
+		Expression exp;
 		if (tk->type == Token::Type::NodeOpen)
-		{
-			r = parse_list();
-		}
+			exp.value = parse_list();
 		else
-		{
-			r = parse_atom(*tk);
-		}
+			exp.value = parse_atom(*tk);
 
-		if (r)
-			list.push_back(*r);
-		else
-		{
-			error("invalid atom or list", *tk);
-			return {};
-		}
+		list.elements.push_back(exp);
 	}
-	node.value = std::move(list);
-	return node;
+	return list;
 }
 
-std::optional<ASTCell> Parser::parse_atom(Token current)
+Atom Parser::parse_atom(Token current)
 {
-	if (current.type == Token::Type::IntLiteral)
+	switch(current.type)
 	{
-		return ASTCell{ std::get<Int_t>(current.value) };
-	}
-	else if (current.type == Token::Type::FloatLiteral)
-	{
-		return ASTCell{ std::get<Float_t>(current.value) };
-	}
-	else if (current.type == Token::Type::StringLiteral)
-	{
-		return ASTCell{ std::get<String_t>(current.value) };
-	}
-	else if (current.type == Token::Type::BoolLiteral)
-	{
-		return ASTCell{ std::get<Bool_t>(current.value) };
-	}
-	else if (current.type == Token::Type::Identifier)
-	{
-		return ASTCell{ Symbol{std::get<String_t>(current.value)} };
+	case Token::Type::IntLiteral:
+		return Atom{ std::get<Int_t>(current.value) };
+	case Token::Type::FloatLiteral:
+		return Atom{ std::get<Float_t>(current.value) };
+	case Token::Type::BoolLiteral:
+		return Atom{ std::get<Bool_t>(current.value) };
+	case Token::Type::Identifier:
+		return Atom{ Symbol{ std::get<String_t>(current.value) } };
+	case Token::Type::StringLiteral:
+		return Atom{ std::get<String_t>(current.value) };
 	}
 	
 	return {};
@@ -220,7 +200,7 @@ bool Parser::expect(Token::Type type)
 	auto const current = lexer->read_next_token();
 	if (!current)
 	{
-		error("eof", Token{});
+		error("unexpected eof", Token{});
 		return false;
 	}
 	if (current->type != type)
@@ -238,7 +218,7 @@ void Parser::error(std::string_view msg, Token const& tk)
 	std::cerr << "parser error line " << tk.line << " : " << msg << "\n";
 }
 
-std::ostream& ales::operator<<(std::ostream& out, ASTCell const& c)
+std::ostream& ales::operator<<(std::ostream& out, Atom const& c)
 {
 	std::visit(overloaded {
 		[&out](Int_t arg) { out << arg << " "; },
@@ -246,14 +226,22 @@ std::ostream& ales::operator<<(std::ostream& out, ASTCell const& c)
 		[&out](Float_t arg) { out << std::fixed << arg << " "; },
 		[&out](String_t const& arg) { out << std::quoted(arg) << " "; },
 		[&out](Symbol const& arg) { out << arg.name << " "; },
-		[&out](FunctionDecl const& arg) { out << "function decl " << arg.funcName << " "; },
-		[&out](CellList_t const& list)
-		{
-			out << "(";
-			for (auto const& e : list)
-				out << " " << e;
-			out << ") ";
-		},
 	}, c.value);
+	return out;
+}
+
+std::ostream& ales::operator<<(std::ostream& out, Expression const& c)
+{
+	std::visit(overloaded{
+		[&out](auto const& arg) { out << arg << " "; },
+		}, c.value);
+	return out;
+}
+
+
+std::ostream& ales::operator<<(std::ostream& out, List const& c)
+{
+	for (auto const& e : c.elements)
+		out << e;
 	return out;
 }
