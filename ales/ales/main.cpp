@@ -53,7 +53,6 @@ struct Interpreter
 		Value_t value;
 	};
 
-	// bruh
 	struct Env
 	{
 		Symbol& add(std::string const& name, Symbol const& sym)
@@ -88,6 +87,16 @@ struct Interpreter
 		std::unordered_map<std::string, Symbol> sym_table;
 		Env* outer = nullptr;
 	};
+
+	void add_macro(std::string const& name, MacroFn_t fn)
+	{
+		global_env.add(name, Symbol{ NativeMacro{fn} });
+	}
+
+	void add_func(std::string const& name, NativeFunc_t fn)
+	{
+		global_env.add(name, Symbol{ NativeFunc_t{fn} });
+	}
 
 	Expression eval(Env& env, Expression const& exp)
 	{
@@ -144,18 +153,16 @@ struct Interpreter
 				else if (std::holds_alternative<ScriptMacro>(sym))
 				{
 					auto const& fn = std::get<ScriptMacro>(sym);
-					Env inner_env;
-					inner_env.outer = &env;
 					int i = 1;
 					for (auto const& arg : fn.arg_list.elements)
 					{
-						inner_env.add(get_symbol_name(arg), Symbol{ Variable{ list.elements[i] } });
+						env.add(get_symbol_name(arg), Symbol{ Variable{ list.elements[i] } });
 						i++;
 					}
 					Expression last_result;
 					for (auto const& exp : fn.macro_body)
 					{
-						last_result = eval(inner_env, exp);
+						last_result = eval(env, exp);
 					}
 					return last_result;
 				}
@@ -170,7 +177,7 @@ struct Interpreter
 int main()
 {
 	std::ifstream source("../../src/test.als");
-	std::string const code((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
+	std::string const code((std::istreambuf_iterator(source)), std::istreambuf_iterator<char>());
 	ales::Lexer lexer(code);
 	ales::Parser parser(lexer);
 	auto const exps = parser.parse();
@@ -181,19 +188,19 @@ int main()
 	std::cout << "=============exec================" << "\n";
 
 	Interpreter interpreter;
-	interpreter.global_env.add("eq", Interpreter::Symbol{ [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	interpreter.add_func("eq", [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	{
+		bool eq = true;
+		auto* last = &list.elements[0];
+		for (size_t i = 1; i < list.elements.size(); i++)
 		{
-			bool eq = true;
-			auto* last = &list.elements[0];
-			for (size_t i = 1; i < list.elements.size(); i++)
-			{
-				eq = *last == list.elements[i];
-				last = &list.elements[i];
-			}
-			return Expression{ Atom{eq} };
-		} });
+			eq = *last == list.elements[i];
+			last = &list.elements[i];
+		}
+		return Expression{ Atom{eq} };
+	});
 
-	interpreter.global_env.add("*", Interpreter::Symbol{ [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	interpreter.add_func("*", [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
 	{
 		Int_t sum = 1;
 		for (size_t i = 0; i < list.elements.size(); i++)
@@ -201,18 +208,18 @@ int main()
 			sum *= get_atom_value<Int_t>(list.elements[i]);
 		}
 		return Expression{ Atom{sum} };
-	} });
+	});
 
-	interpreter.global_env.add("print", Interpreter::Symbol{ [](Interpreter& inter, Interpreter::Env&, List const& list) -> Expression
+	interpreter.add_func("print", [](Interpreter& inter, Interpreter::Env&, List const& list) -> Expression
 	{
 		for (size_t i = 0; i < list.elements.size(); i++)
 		{
 			std::cout << list.elements[i];
 		}
 		return Expression{ };
-	} });
+	});
 
-	interpreter.global_env.add("if", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	interpreter.add_macro("if", [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
 	{
 		if (list.elements.size() < 3)
 			throw std::runtime_error("not enough expressions in if");
@@ -230,9 +237,9 @@ int main()
 			return inter.eval(env, else_body);
 		}
 		return Expression{ };
-	} } });
+	});
 
-	interpreter.global_env.add("macroexpand", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list)->Expression
+	interpreter.add_macro("macroexpand", [](Interpreter& inter, Interpreter::Env& env, List const& list)->Expression
 	{
 		Expression expanded = inter.eval(env, list.elements[1]);
 		while (!std::holds_alternative<Atom>(expanded.value))
@@ -240,9 +247,9 @@ int main()
 			expanded = inter.eval(env, expanded);
 		}
 		return expanded;
-	}} });
+	});
 
-	interpreter.global_env.add("defun", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	interpreter.add_macro("defun", [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
 	{
 		if (list.elements.size() < 4)
 			throw std::runtime_error("not enough expressions in defun");
@@ -253,9 +260,9 @@ int main()
 		script_function.func_body.insert(script_function.func_body.end(), list.elements.begin() + 3, list.elements.end());
 		env.add(fnName, Interpreter::Symbol{ std::move(script_function) });
 		return Expression{ };
-	} } });
+	});
 
-	interpreter.global_env.add("defmacro", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	interpreter.add_macro("defmacro", [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
 	{
 		if (list.elements.size() < 4)
 			throw std::runtime_error("not enough expressions in defmacro");
@@ -266,7 +273,7 @@ int main()
 		script_macro.macro_body.insert(script_macro.macro_body.end(), list.elements.begin() + 3, list.elements.end());
 		env.add(fnName, Interpreter::Symbol{ std::move(script_macro) });
 		return Expression{ };
-	} } });
+	});
 
 	for (auto const& e : exps)
 	{

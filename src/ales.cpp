@@ -205,9 +205,9 @@ bool Parser::expect(Token::Type type)
 	}
 	if (current->type != type)
 	{
-		char errorBuffer[512];
-		snprintf(errorBuffer, std::size(errorBuffer), "expected token %s got %s", to_string(type), to_string(current->type));
-		error(errorBuffer, *current);
+		char error_buffer[512];
+		snprintf(error_buffer, std::size(error_buffer), "expected token %s got %s", to_string(type), to_string(current->type));
+		error(error_buffer, *current);
 		return false;
 	}
 	return true;
@@ -251,7 +251,6 @@ std::ostream& ales::operator<<(std::ostream& out, Expression const& c)
 		}, c.value);
 	return out;
 }
-
 
 std::ostream& ales::operator<<(std::ostream& out, List const& c)
 {
