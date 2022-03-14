@@ -15,64 +15,65 @@ struct Interpreter
 		return std::get<Symbol>(std::get<Atom>(e.value).value).name;
 	}
 
+	template<typename T>
+	static T getAtomValue(Expression const& e)
+	{
+		return std::get<T>(std::get<Atom>(e.value).value);
+	}
+
 	using Env = std::unordered_map<std::string, Symbol>;
 
 	Expression eval(Env& env, Expression exp)
 	{
-		Expression result;
-		std::visit(overloaded{
-			[&result](Atom const& arg) { result.value = arg; },
-			[&result, &env, this](List const& arg)
+		return std::visit(overloaded{
+			[](Atom const& arg) { return Expression{arg}; },
+			[&env, this](List const& list)
 			{
-				if (arg.elements.empty())
+				if (list.elements.empty())
 				{
-					result.value = arg;
-					return;
+					return Expression{list};
 				}
 
-				try {
-					auto const op = getSymbolName(*arg.elements.begin());
-					if (op == "defun")
+				std::string const op = getSymbolName(*list.elements.begin());
+				if (op == "if")
+				{
+					if (list.elements.size() < 3)
+						throw std::runtime_error("not enough expressions in if");
+
+					Expression const cond = list.elements[1];
+
+					if (getAtomValue<Bool_t>(eval(env, cond)))
 					{
-						if (arg.elements.size() < 4)
-							throw std::runtime_error("not enough expressions in function declaration !");
-
-						std::string const name = getSymbolName(arg.elements[1]);
-						List argList = std::get<List>(arg.elements[2].value);
-						
-						std::vector<Expression> body(arg.elements.begin() + 2, arg.elements.end());
-						env[name].value = [argList, body](std::vector<Expression> const& fnArgs)
-						{
-							if (fnArgs.size() != argList.elements.size())
-								throw std::runtime_error("arg count mismatch !");
-
-							Env fnEnv;
-							for (size_t i = 0; i < fnArgs.size(); i++)
-							{
-								fnEnv[getSymbolName(argList.elements[i])].value = Var_t(getSymbolName(argList.elements[i]));
-							}
-							return Expression{};
-						};
+						Expression const trueBody = list.elements[2];
+						eval(env, trueBody);
 					}
-					else
+					else if (list.elements.size() == 4)
 					{
-						std::vector<Expression> args;
-						args.reserve(arg.elements.size() - 1);
-
-						for (size_t i = 1; i < arg.elements.size(); i++)
-							args.push_back(eval(env, arg.elements[i]));
-						// regular call
-						result = std::get<Function_t>(env.at(op).value)(args);
+						Expression const elseBody = list.elements[3];
+						eval(env, elseBody);
 					}
 				}
-				catch(std::exception const& e)
+				else if (op == "eq")
 				{
-					std::cerr << e.what();
-					throw;
+					bool eq = true;
+					auto* last = &list.elements[1];
+					for (size_t i = 2; i < list.elements.size(); i++)
+					{
+						eq = *last == list.elements[i];
+						last = &list.elements[i];
+					}
+					return Expression{Atom{eq}};
 				}
+				else if (op == "print")
+				{
+					for (size_t i = 1; i < list.elements.size(); i++)
+					{
+						std::cout << list.elements[i];
+					}
+				}
+				return Expression{};
 			},
 		}, exp.value);
-		return result;
 	}
 	Env global_env;
 };
@@ -83,7 +84,7 @@ int main()
 	std::string const code((std::istreambuf_iterator<char>(source)), std::istreambuf_iterator<char>());
 	ales::Lexer lexer(code);
 	ales::Parser parser(lexer);
-	auto exps = parser.parse();
+	auto const exps = parser.parse();
 
 	for (auto const& c : exps)
 		std::cout << c << "\n";
@@ -91,26 +92,6 @@ int main()
 	std::cout << "=============exec================" << "\n";
 
 	Interpreter interpreter;
-	interpreter.global_env["print"].value = [](std::vector<Expression> const& args) -> Expression
-	{
-		for (auto const& arg : args)
-		{
-			std::cout << arg;
-		}
-		std::cout << "\n";
-
-		return Expression{   };
-	};
-
-	interpreter.global_env["+"].value = [](std::vector<Expression> const& args) -> Expression
-	{
-		Int_t sum = 0;
-		for (auto const& arg : args)
-		{
-			sum += std::get<Int_t>(std::get<Atom>(arg.value).value);
-		}
-		return Expression{ Atom{ Int_t{sum} } };
-	};
 
 	for (auto const& e : exps)
 	{

@@ -9,6 +9,7 @@
 #include <string_view>
 #include <limits>
 #include <functional>
+#include <xlocmon>
 
 /*
 	list -> '(' expression* ')'
@@ -25,32 +26,45 @@ namespace ales
 	using Bool_t = bool;
 	struct Expression;
 	using Function_t = std::function<Expression(std::vector<Expression> const&)>;
-	using Var_t = std::string;
 
 	using ArgCount_t = uint8_t;
 	auto constexpr max_statement_elements = std::numeric_limits<ArgCount_t>::max();
 
-
 	struct Symbol
 	{
-		using Value_t = std::variant<Var_t, Function_t>;
+		bool operator==(Symbol const& rhs) const
+		{
+			return name == rhs.name;
+		}
+
 		std::string name;
-		Value_t value;
 	};
 
 	struct Atom
 	{
+		bool operator==(Atom const& rhs) const
+		{
+			return value == rhs.value;
+		}
+
 		using Value_t = std::variant<Int_t, Float_t, String_t, Bool_t, Symbol>;
 		Value_t value;
 	};
 
 	struct List
 	{
+		bool operator==(List const& rhs) const;
+
 		std::vector<Expression> elements;
 	};
 
 	struct Expression
 	{
+		bool operator==(Expression const& rhs) const
+		{
+			return value == rhs.value;
+		}
+
 		using Value_t = std::variant<Atom, List>;
 		Value_t value;
 	};
@@ -105,7 +119,7 @@ namespace ales
 		[[nodiscard]] std::vector<Expression> parse();
 		[[nodiscard]] List parse_list();
 		[[nodiscard]] Atom parse_atom(Token);
-		
+
 		bool expect(Token::Type type);
 		void error(std::string_view msg, Token const& tk);
 
@@ -113,7 +127,43 @@ namespace ales
 		Lexer* lexer;
 	};
 
+	enum VarType
+	{
+		Int,
+		Float,
+		Bool,
+		String,
+	};
 
+	struct BlockStatement
+	{
+		
+	};
+
+	using Statement_t = std::variant<BlockStatement>;
+
+	struct VarDecl
+	{
+		std::string varName;
+		VarType type;
+	};
+
+	struct FnArg
+	{
+		std::string name;
+		VarType type;
+	};
+
+	struct FuncDecl
+	{
+		std::string fnName;
+		VarType returnType;
+		std::vector<FnArg> args;
+
+		BlockStatement body;
+	};
+
+	using Declaration_t = std::variant<VarDecl, FuncDecl>;
 }
 
 #endif
