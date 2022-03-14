@@ -8,26 +8,32 @@
 
 using namespace ales;
 
+static std::string getSymbolName(Expression const& e)
+{
+	return std::get<Symbol>(std::get<Atom>(e.value).value).name;
+}
+
+template<typename T>
+static T getAtomValue(Expression const& e)
+{
+	return std::get<T>(std::get<Atom>(e.value).value);
+}
+
 struct Interpreter
 {
-	static std::string getSymbolName(Expression const& e)
+	struct Env;
+	using SymFn_t = Expression(*)(Interpreter&, Env& env, List const& list);
+
+	// bruh
+	struct Env : std::unordered_map<std::string, SymFn_t>
 	{
-		return std::get<Symbol>(std::get<Atom>(e.value).value).name;
-	}
+	};
 
-	template<typename T>
-	static T getAtomValue(Expression const& e)
-	{
-		return std::get<T>(std::get<Atom>(e.value).value);
-	}
-
-	using Env = std::unordered_map<std::string, Symbol>;
-
-	Expression eval(Env& env, Expression exp)
+	Expression eval(Env& env, Expression const& exp)
 	{
 		return std::visit(overloaded{
 			[](Atom const& arg) { return Expression{arg}; },
-			[&env, this](List const& list)
+			[env, this] (List const& list) mutable
 			{
 				if (list.elements.empty())
 				{
@@ -35,43 +41,7 @@ struct Interpreter
 				}
 
 				std::string const op = getSymbolName(*list.elements.begin());
-				if (op == "if")
-				{
-					if (list.elements.size() < 3)
-						throw std::runtime_error("not enough expressions in if");
-
-					Expression const cond = list.elements[1];
-
-					if (getAtomValue<Bool_t>(eval(env, cond)))
-					{
-						Expression const trueBody = list.elements[2];
-						eval(env, trueBody);
-					}
-					else if (list.elements.size() == 4)
-					{
-						Expression const elseBody = list.elements[3];
-						eval(env, elseBody);
-					}
-				}
-				else if (op == "eq")
-				{
-					bool eq = true;
-					auto* last = &list.elements[1];
-					for (size_t i = 2; i < list.elements.size(); i++)
-					{
-						eq = *last == list.elements[i];
-						last = &list.elements[i];
-					}
-					return Expression{Atom{eq}};
-				}
-				else if (op == "print")
-				{
-					for (size_t i = 1; i < list.elements.size(); i++)
-					{
-						std::cout << list.elements[i];
-					}
-				}
-				return Expression{};
+				return env[op](*this, env, list);
 			},
 		}, exp.value);
 	}
@@ -92,6 +62,46 @@ int main()
 	std::cout << "=============exec================" << "\n";
 
 	Interpreter interpreter;
+	interpreter.global_env["eq"] = [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	{
+		bool eq = true;
+		auto* last = &list.elements[1];
+		for (size_t i = 2; i < list.elements.size(); i++)
+		{
+			eq = *last == list.elements[i];
+			last = &list.elements[i];
+		}
+		return Expression{ Atom{eq} };
+	};
+
+	interpreter.global_env["print"] = [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	{
+		for (size_t i = 1; i < list.elements.size(); i++)
+		{
+			std::cout << list.elements[i];
+		}
+		return Expression{ };
+	};
+
+	interpreter.global_env["if"] = [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	{
+		if (list.elements.size() < 3)
+			throw std::runtime_error("not enough expressions in if");
+
+		Expression const cond = list.elements[1];
+
+		if (getAtomValue<Bool_t>(inter.eval(env, cond)))
+		{
+			Expression const trueBody = list.elements[2];
+			return inter.eval(env, trueBody);
+		}
+		else if (list.elements.size() == 4)
+		{
+			Expression const elseBody = list.elements[3];
+			return inter.eval(env, elseBody);
+		}
+		return Expression{ };
+	};
 
 	for (auto const& e : exps)
 	{

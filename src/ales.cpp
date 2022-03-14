@@ -230,6 +230,20 @@ std::ostream& ales::operator<<(std::ostream& out, Atom const& c)
 	return out;
 }
 
+bool List::operator==(List const& rhs) const
+{
+	if (elements.size() != rhs.elements.size())
+		return false;
+
+	for (size_t i = 0; i < elements.size(); i++)
+	{
+		if (!(elements[i] == rhs.elements[i]))
+			return false;
+	}
+
+	return true;
+}
+
 std::ostream& ales::operator<<(std::ostream& out, Expression const& c)
 {
 	std::visit(overloaded{
