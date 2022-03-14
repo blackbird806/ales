@@ -8,13 +8,13 @@
 
 using namespace ales;
 
-static std::string getSymbolName(Expression const& e)
+static std::string get_symbol_name(Expression const& e)
 {
 	return std::get<Symbol>(std::get<Atom>(e.value).value).name;
 }
 
 template<typename T>
-static T getAtomValue(Expression const& e)
+static T get_atom_value(Expression const& e)
 {
 	return std::get<T>(std::get<Atom>(e.value).value);
 }
@@ -25,9 +25,15 @@ struct Interpreter
 	using NativeFunc_t = Expression(*)(Interpreter&, Env& env, List const& list);
 	using MacroFn_t = Expression(*)(Interpreter&, Env& env, List const& list);
 
-	struct Macro
+	struct NativeMacro
 	{
 		MacroFn_t macro_fn;
+	};
+
+	struct ScriptMacro
+	{
+		std::vector<Expression> macro_body;
+		List arg_list;
 	};
 
 	struct ScriptFunction
@@ -43,7 +49,7 @@ struct Interpreter
 
 	struct Symbol
 	{
-		using Value_t = std::variant<NativeFunc_t, ScriptFunction, Variable, Macro>;
+		using Value_t = std::variant<NativeFunc_t, ScriptFunction, Variable, NativeMacro, ScriptMacro>;
 		Value_t value;
 	};
 
@@ -86,11 +92,12 @@ struct Interpreter
 	Expression eval(Env& env, Expression const& exp)
 	{
 		return std::visit(overloaded{
-			[&env](Atom const& arg)
+			[&env, this](Atom const& arg)
 			{
 				if (std::holds_alternative<ales::Symbol>(arg.value))
 				{
-					return std::get<Variable>(env[std::get<ales::Symbol>(arg.value).name].value).exp;
+					auto const& sym = env[std::get<ales::Symbol>(arg.value).name].value;
+					return std::get<Variable>(sym).exp;
 				}
 				return Expression{arg};
 			},
@@ -101,7 +108,7 @@ struct Interpreter
 					return Expression{list};
 				}
 
-				std::string const op = getSymbolName(*list.elements.begin());
+				std::string const op = get_symbol_name(*list.elements.begin());
 				auto const sym = env[op].value;
 				if (std::holds_alternative<NativeFunc_t>(sym))
 				{
@@ -112,9 +119,9 @@ struct Interpreter
 
 					return std::get<NativeFunc_t>(sym)(*this, env, arg_list);
 				}
-				if (std::holds_alternative<Macro>(sym))
+				if (std::holds_alternative<NativeMacro>(sym))
 				{
-					return std::get<Macro>(sym).macro_fn(*this, env, list);
+					return std::get<NativeMacro>(sym).macro_fn(*this, env, list);
 				}
 				else if (std::holds_alternative<ScriptFunction>(sym))
 				{
@@ -124,7 +131,7 @@ struct Interpreter
 					int i = 1;
 					for (auto const& arg : fn.arg_list.elements)
 					{
-						inner_env.add(getSymbolName(arg), Symbol{ Variable{ eval(env, list.elements[i]) } });
+						inner_env.add(get_symbol_name(arg), Symbol{ Variable{ eval(env, list.elements[i]) } });
 						i++;
 					}
 					Expression last_result;
@@ -134,6 +141,25 @@ struct Interpreter
 					}
 					return last_result;
 				}
+				else if (std::holds_alternative<ScriptMacro>(sym))
+				{
+					auto const& fn = std::get<ScriptMacro>(sym);
+					Env inner_env;
+					inner_env.outer = &env;
+					int i = 1;
+					for (auto const& arg : fn.arg_list.elements)
+					{
+						inner_env.add(get_symbol_name(arg), Symbol{ Variable{ list.elements[i] } });
+						i++;
+					}
+					Expression last_result;
+					for (auto const& exp : fn.macro_body)
+					{
+						last_result = eval(inner_env, exp);
+					}
+					return last_result;
+				}
+
 				return Expression{ };
 			},
 		}, exp.value);
@@ -158,8 +184,8 @@ int main()
 	interpreter.global_env.add("eq", Interpreter::Symbol{ [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
 		{
 			bool eq = true;
-			auto* last = &list.elements[1];
-			for (size_t i = 2; i < list.elements.size(); i++)
+			auto* last = &list.elements[0];
+			for (size_t i = 1; i < list.elements.size(); i++)
 			{
 				eq = *last == list.elements[i];
 				last = &list.elements[i];
@@ -172,7 +198,7 @@ int main()
 		Int_t sum = 1;
 		for (size_t i = 0; i < list.elements.size(); i++)
 		{
-			sum *= getAtomValue<Int_t>(list.elements[i]);
+			sum *= get_atom_value<Int_t>(list.elements[i]);
 		}
 		return Expression{ Atom{sum} };
 	} });
@@ -186,39 +212,61 @@ int main()
 		return Expression{ };
 	} });
 
-	interpreter.global_env.add("if", Interpreter::Symbol{ Interpreter::Macro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	interpreter.global_env.add("if", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
 	{
 		if (list.elements.size() < 3)
 			throw std::runtime_error("not enough expressions in if");
 
 		Expression const cond = list.elements[1];
 
-		if (getAtomValue<Bool_t>(inter.eval(env, cond)))
+		if (get_atom_value<Bool_t>(inter.eval(env, cond)))
 		{
-			Expression const trueBody = list.elements[2];
-			return inter.eval(env, trueBody);
+			Expression const true_body = list.elements[2];
+			return inter.eval(env, true_body);
 		}
 		else if (list.elements.size() == 4)
 		{
-			Expression const elseBody = list.elements[3];
-			return inter.eval(env, elseBody);
+			Expression const else_body = list.elements[3];
+			return inter.eval(env, else_body);
 		}
 		return Expression{ };
 	} } });
 
-	interpreter.global_env.add("defun", Interpreter::Symbol{ Interpreter::Macro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	interpreter.global_env.add("macroexpand", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list)->Expression
+	{
+		Expression expanded = inter.eval(env, list.elements[1]);
+		while (!std::holds_alternative<Atom>(expanded.value))
+		{
+			expanded = inter.eval(env, expanded);
+		}
+		return expanded;
+	}} });
+
+	interpreter.global_env.add("defun", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
 	{
 		if (list.elements.size() < 4)
 			throw std::runtime_error("not enough expressions in defun");
 
-		std::string const fnName = getSymbolName(list.elements[1]);
-		Interpreter::ScriptFunction scriptFunction;
-		scriptFunction.arg_list = std::get<List>(list.elements[2].value);
-		scriptFunction.func_body.insert(scriptFunction.func_body.end(), list.elements.begin() + 3, list.elements.end());
-		env.add(fnName, Interpreter::Symbol{ std::move(scriptFunction) });
+		std::string const fnName = get_symbol_name(list.elements[1]);
+		Interpreter::ScriptFunction script_function;
+		script_function.arg_list = std::get<List>(list.elements[2].value);
+		script_function.func_body.insert(script_function.func_body.end(), list.elements.begin() + 3, list.elements.end());
+		env.add(fnName, Interpreter::Symbol{ std::move(script_function) });
 		return Expression{ };
 	} } });
 
+	interpreter.global_env.add("defmacro", Interpreter::Symbol{ Interpreter::NativeMacro{ [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	{
+		if (list.elements.size() < 4)
+			throw std::runtime_error("not enough expressions in defmacro");
+
+		std::string const fnName = get_symbol_name(list.elements[1]);
+		Interpreter::ScriptMacro script_macro;
+		script_macro.arg_list = std::get<List>(list.elements[2].value);
+		script_macro.macro_body.insert(script_macro.macro_body.end(), list.elements.begin() + 3, list.elements.end());
+		env.add(fnName, Interpreter::Symbol{ std::move(script_macro) });
+		return Expression{ };
+	} } });
 
 	for (auto const& e : exps)
 	{
