@@ -210,12 +210,41 @@ int main()
 		return Expression{ Atom{sum} };
 	});
 
+	interpreter.add_func("+", [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	{
+		Int_t sum = 0;
+		for (size_t i = 0; i < list.elements.size(); i++)
+		{
+			sum += get_atom_value<Int_t>(list.elements[i]);
+		}
+		return Expression{ Atom{sum} };
+	});
+
+	interpreter.add_macro("quote", [](Interpreter&, Interpreter::Env&, List const& list) -> Expression
+	{
+		List l;
+		l.elements.insert(l.elements.end(), list.elements.begin() + 1, list.elements.end());
+		return Expression{ std::move(l) };
+	});
+
 	interpreter.add_func("print", [](Interpreter& inter, Interpreter::Env&, List const& list) -> Expression
 	{
 		for (size_t i = 0; i < list.elements.size(); i++)
 		{
 			std::cout << list.elements[i];
 		}
+		return Expression{ };
+	});
+
+	interpreter.add_macro("set", [](Interpreter& inter, Interpreter::Env& env, List const& list) -> Expression
+	{
+		if (list.elements.size() != 3)
+			throw std::runtime_error("set must have 2 args");
+
+		auto const& name = list.elements[1];
+		auto const& value = inter.eval(env, list.elements[2]);
+		env.add(get_symbol_name(name), Interpreter::Symbol{ Interpreter::Variable{value} });
+
 		return Expression{ };
 	});
 
