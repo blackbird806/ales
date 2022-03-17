@@ -9,13 +9,11 @@
 #include <string_view>
 #include <limits>
 #include <functional>
-#include <xlocmon>
 
 /*
 	list -> '(' expression* ')'
 	expression -> atom | list
 	atom -> number | symbol | string | bool
-	symbol -> function | variable
 	number -> int | float
  */
 namespace ales

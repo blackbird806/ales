@@ -247,7 +247,8 @@ bool List::operator==(List const& rhs) const
 std::ostream& ales::operator<<(std::ostream& out, Expression const& c)
 {
 	std::visit(overloaded{
-		[&out](auto const& arg) { out << arg << " "; },
+		[&out](Atom const& arg) { out << arg << " "; },
+		[&out](List const& arg) { out << "(" << arg << ") "; },
 		}, c.value);
 	return out;
 }

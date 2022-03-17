@@ -45,6 +45,7 @@ struct Interpreter
 	struct Variable
 	{
 		Expression exp;
+		bool is_macro_parameter = false;
 	};
 
 	struct Symbol
@@ -96,6 +97,59 @@ struct Interpreter
 	void add_func(std::string const& name, NativeFunc_t fn)
 	{
 		global_env.add(name, Symbol{ NativeFunc_t{fn} });
+	}
+
+	bool is_macro(List const& exp, Env const& env) const
+	{
+		return is_macro(exp.elements[0], env);
+	}
+
+	bool is_macro(Atom const& atom, Env const& env) const
+	{
+		if (std::holds_alternative<ales::Symbol>(atom.value))
+		{
+			auto const& sym = env[std::get<ales::Symbol>(atom.value).name];
+			return std::holds_alternative<ScriptMacro>(sym.value) || std::holds_alternative<NativeMacro>(sym.value);
+		}
+		return false;
+	}
+
+	bool is_macro(Expression const& exp, Env const& env) const
+	{
+		if (std::holds_alternative<List>(exp.value))
+		{
+			return is_macro(std::get<List>(exp.value), env);
+		}
+		return is_macro(std::get<Atom>(exp.value), env);
+	}
+
+	Expression macro_expand(Env& env, Expression const& exp)
+	{
+		return  std::visit(overloaded{
+			[&env, this](Atom const& arg) -> Expression
+			{
+				if (std::holds_alternative<ales::Symbol>(arg.value))
+				{
+					auto const& sym = env[std::get<ales::Symbol>(arg.value).name].value;
+					if (std::holds_alternative<Variable>(sym))
+					{
+						auto const& var = std::get<Variable>(sym);
+						return var.exp;
+					}
+				}
+				return Expression{arg};
+			},
+			[this, &env](List const& list) -> Expression
+			{
+				List expanded_list;
+				expanded_list.elements.reserve(list.elements.size());
+				for (auto const& e : list.elements)
+				{
+					expanded_list.elements.push_back(macro_expand(env, e));
+				}
+				return Expression{ expanded_list };
+			}
+		}, exp.value);
 	}
 
 	Expression eval(Env& env, Expression const& exp)
@@ -156,15 +210,16 @@ struct Interpreter
 					int i = 1;
 					for (auto const& arg : fn.arg_list.elements)
 					{
-						env.add(get_symbol_name(arg), Symbol{ Variable{ list.elements[i] } });
+						env.add(get_symbol_name(arg), Symbol{ Variable{ list.elements[i], true } });
 						i++;
 					}
-					Expression last_result;
-					for (auto const& exp : fn.macro_body)
+					Expression expanded;
+					for (auto const& fn_exp : fn.macro_body)
 					{
-						last_result = eval(env, exp);
+						expanded = macro_expand(env, fn_exp);
+						expanded = eval(env, expanded);
 					}
-					return last_result;
+					return expanded;
 				}
 
 				return Expression{ };
@@ -253,16 +308,16 @@ int main()
 		if (list.elements.size() < 3)
 			throw std::runtime_error("not enough expressions in if");
 
-		Expression const cond = list.elements[1];
+		Expression const& cond = list.elements[1];
 
 		if (get_atom_value<Bool_t>(inter.eval(env, cond)))
 		{
-			Expression const true_body = list.elements[2];
+			Expression const& true_body = list.elements[2];
 			return inter.eval(env, true_body);
 		}
 		else if (list.elements.size() == 4)
 		{
-			Expression const else_body = list.elements[3];
+			Expression const& else_body = list.elements[3];
 			return inter.eval(env, else_body);
 		}
 		return Expression{ };
@@ -270,10 +325,10 @@ int main()
 
 	interpreter.add_macro("macroexpand", [](Interpreter& inter, Interpreter::Env& env, List const& list)->Expression
 	{
-		Expression expanded = inter.eval(env, list.elements[1]);
-		while (!std::holds_alternative<Atom>(expanded.value))
+		Expression expanded;
+		for (size_t i = 1; i < list.elements.size(); i++)
 		{
-			expanded = inter.eval(env, expanded);
+			expanded = inter.eval(env, list.elements[i]);
 		}
 		return expanded;
 	});
